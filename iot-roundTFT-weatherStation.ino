@@ -31,7 +31,7 @@ Adafruit_BME680 bme;
 Adafruit_GC9A01A tft(15, 2);
 
 //Clock data
-char daysOfTheWeek[8][12] = {"Error", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
+char daysOfTheWeek[8][12] = {"E", "H", "K", "SZE", "CS", "P", "SZO", "V"};
 unsigned long clockPreviousMillis = 0;
 const long clockInterval = 1000;
 int seconds = 0;
@@ -52,6 +52,9 @@ int currentScrean = 0;
 int robin = 0;
 
 void setup() {
+  delay(100);
+  Serial.begin(9600);
+
   delay(100);
   Wire.begin();
 
@@ -94,8 +97,17 @@ void loop() {
       case 3:
         screen03();
         break;
+      case 4:
+        screen04();
+        break;
+      case 5:
+        screen05();
+        break;
+      case 6:
+        screen06();
+        break;
       default:
-        //--
+        error();
         break;
     }
     roundRobin();
@@ -111,8 +123,17 @@ void roundRobin(){
   if(robin>=20 and robin<30) currentScrean = 2;
   if(robin==30) screen03_Init();
   if(robin>=30 and robin<40) currentScrean = 3;
-  if(robin>=40) robin = 0;
-  Serial.println(robin);
+  if(robin==40) screen04_Init();
+  if(robin>=40 and robin<50) currentScrean = 4;
+  if(robin==50) screen05_Init();
+  if(robin>=50 and robin<60) currentScrean = 5;
+  if(robin==60) screen06_Init();
+  if(robin>=60 and robin<70) currentScrean = 6;
+  if(robin>=70) {
+    robin = 0;
+    serialLog();
+  }
+  //Serial.println(robin);
 }
 
 void timer() {
@@ -126,22 +147,21 @@ void timer() {
   }*/
 }
 
+void error(){
+  tft.fillScreen(GC9A01A_BLACK);
+  drawCenteredText("--HIBA--");
+}
+
 void screen01_Init(){
   tft.fillScreen(GC9A01A_BLACK);
   drawClockFace(GC9A01A_WHITE);
 }
 
 void screen01() {
-
   unsigned long currentMillis = millis();
-
   if (currentMillis - clockPreviousMillis >= clockInterval) {
     drawClock(hours, minutes, seconds, GC9A01A_BLACK, GC9A01A_BLACK);
     clockPreviousMillis = currentMillis;
-    //myRTC.getYear()
-    //myRTC.getMonth(century)
-    //myRTC.getDate()  
-    //myRTC.getDoW()
     hours = myRTC.getHour(h12Flag, pmFlag);
     minutes = myRTC.getMinute();
     seconds = myRTC.getSecond();
@@ -151,6 +171,18 @@ void screen01() {
 
 void screen02_Init(){
   tft.fillScreen(GC9A01A_BLACK);
+  drawClockFace(GC9A01A_WHITE);
+  String dateString = "";
+  dateString = dateString + "20"+myRTC.getYear()+"."+myRTC.getMonth(century)+"."+myRTC.getDate()+" "+daysOfTheWeek[myRTC.getDoW()];
+  drawCenteredText(dateString.c_str());
+}
+
+void screen02(){
+  delay(900);
+}
+
+void screen03_Init(){
+  tft.fillScreen(GC9A01A_BLACK);
   bme.performReading();
   float temperature = bme.temperature;
   float values[] = {temperature, 100.0-temperature};
@@ -159,16 +191,11 @@ void screen02_Init(){
   drawCenteredText("C");
 }
 
-void screen02(){
+void screen03(){
   delay(900);
-  //bme.performReading();
-  float temperature = bme.temperature;
-  float values[] = {temperature, 100.0-temperature};
-  int numValues = sizeof(values) / sizeof(values[0]);
-  drawPieChart(values,numValues, false, true, GC9A01A_RED);
 }
 
-void screen03_Init(){
+void screen04_Init(){
   tft.fillScreen(GC9A01A_BLACK);
   bme.performReading();
   float humidity = bme.humidity;
@@ -178,13 +205,36 @@ void screen03_Init(){
   drawCenteredText("%");
 }
 
-void screen03(){
+void screen04(){
   delay(900);
-  //bme.performReading();
-  float humidity = bme.humidity;
-  float values[] = {humidity, 100.0-humidity};
+}
+
+void screen05_Init(){
+  tft.fillScreen(GC9A01A_BLACK);
+  bme.performReading();
+  float pressure = bme.pressure / 100.0;
+  float values[] = {pressure, 2000.0-pressure};
   int numValues = sizeof(values) / sizeof(values[0]);
-  drawPieChart(values,numValues, false, true, GC9A01A_BLUE);
+  drawPieChart(values,numValues, true, true, GC9A01A_GREEN);
+  drawCenteredText("hPa");
+}
+
+void screen05(){
+  delay(900);
+}
+
+void screen06_Init(){
+  tft.fillScreen(GC9A01A_BLACK);
+  bme.performReading();
+  float gasResistance = bme.gas_resistance / 1000.0;
+  float values[] = {gasResistance, 100.0-gasResistance};
+  int numValues = sizeof(values) / sizeof(values[0]);
+  drawPieChart(values,numValues, true, true, GC9A01A_YELLOW);
+  drawCenteredText("Qual");
+}
+
+void screen06(){
+  delay(900);
 }
 
 void drawClockFace(uint16_t colorMain){
@@ -245,12 +295,12 @@ void drawClock(int hour, int minute, int second, uint16_t colorMain, uint16_t co
 }
 
 void drawPieChart(float values[], int numValues, bool fill, bool firstBig, uint16_t color) {
-
+  drawScale();
   // Kördiagram pozíciója és mérete
   int cx = tft.width() / 2;    // Középpont x koordináta
   int cy = tft.height() / 2;   // Középpont y koordináta
-  int radius = (min(tft.width(), tft.height()) / 2)-10;
-  int radiusSmaller = radius/3;
+  float radius = (min(tft.width(), tft.height()) / 2)-10;
+  float radiusSmaller = radius/3;
 
   // Színek a kördiagram szeleteihez
   uint16_t colors[] = {GC9A01A_RED, GC9A01A_DARKGREY, GC9A01A_BLUE, GC9A01A_YELLOW};
@@ -276,19 +326,31 @@ void drawPieChart(float values[], int numValues, bool fill, bool firstBig, uint1
       fillArc(cx, cy, radius, startAngle, endAngle, colors[i]);
       //drawOutlineArc(cx, cy, radius, startAngle, endAngle, colors[i]);
       drawOutlineArc(cx, cy, radius, startAngle, endAngle, GC9A01A_WHITE);
-      drawScale();
     }
 
     // Szelet közepére szám kiírása
     if(i==0 || !firstBig){
       float midAngle = (startAngle + endAngle) / 2.0;
-      int labelX = cx + cos(radians(midAngle)) * (radius / 2); // Középpont x koordináta
-      int labelY = cy + sin(radians(midAngle)) * (radius / 2); // Középpont y koordináta
+      int labelX = cx + cos(radians(midAngle)) * ((radius*0.8) / 2); // Középpont x koordináta
+      int labelY = cy + sin(radians(midAngle)) * ((radius*0.8) / 2); // Középpont y koordináta
       drawCenteredText(values[i], labelX, labelY);
     }
 
     startAngle = endAngle;
   }
+
+
+  /*startAngle = 0;
+  for (int i = 0; i < numValues; i++) {
+    float endAngle = startAngle + 360.0 * values[i] / total;
+    
+    if(i>0 && firstBig) radius = radiusSmaller;
+
+
+
+    startAngle = endAngle;
+  }*/
+  drawScale();
 }
 
 // Arc kitöltése Adafruit GFX könyvtárral
@@ -368,25 +430,37 @@ void drawCenteredText(float value, int x, int y) {
   // Függőleges tükrözés
   y = tft.height() - y;
 
-  drawRectByCenter(x,y);
-  tft.setCursor(x - 10, y - 8); // Szöveg kiírásának helye
-  tft.print(value); // Szöveg kiírása
+  String text(value);
+
+  int16_t x1, y1;
+  uint16_t w, h;
+  // Szöveg méretének kiszámítása
+  tft.getTextBounds(text.c_str(), 0, 0, &x1, &y1, &w, &h);
+
+  drawTextBg(text.c_str(), x-w/2, y-h/2,GC9A01A_DARKGREY);
+
+  tft.setCursor(x - w/2, y - h/2); // Szöveg kiírásának helye
+  tft.print(text); // Szöveg kiírása
 }
 
-void drawRectByCenter(int x, int y){
-  int width = 70;   // Téglalap szélessége
-  int height = 20;   // Téglalap magassága
+void drawTextBg(const char* text, int x, int y, uint16_t color){
+  // Szöveg méretének kiszámítása
+  int16_t x1, y1;
+  uint16_t w, h;
+  tft.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
 
-  // A bal felső sarok kiszámítása
-  int tx = x+18 - width / 2;
-  int ty = y-1 - height / 2;
+  // Téglalap koordináták és méretek
+  int rectX = x - 4; // 1px margó a bal oldalon
+  int rectY = y - 4; // 1px margó felül
+  int rectW = w + 6; // 2px margó a két oldalon
+  int rectH = h + 6; // 2px margó felül és alul
 
-  // Téglalap kirajzolása
-  tft.fillRect(tx, ty, width, height, GC9A01A_DARKGREY);
+  // Szürke téglalap rajzolása
+  tft.fillRect(rectX, rectY, rectW, rectH, color);
 }
 
 void drawCenteredText(const char* text) {
-  int16_t x1, y1;
+ int16_t x1, y1;
   uint16_t w, h;
   tft.setTextSize(2);
   tft.setTextColor(GC9A01A_WHITE);
@@ -400,6 +474,43 @@ void drawCenteredText(const char* text) {
   int x = centerX - w / 2;
   int y = centerY - h / 2;
 
+  drawTextBg(text, x, y,GC9A01A_DARKGREY);
+
+  // Szöveg kiírása
   tft.setCursor(x, y);
   tft.print(text);
+}
+
+void serialLog(){
+    float temperature = bme.temperature;
+    float humidity = bme.humidity;
+    float pressure = bme.pressure / 100.0; // Convert to hPa
+    float gasResistance = bme.gas_resistance / 1000.0; // Convert to kΩ
+    float altitude = bme.readAltitude(SEALEVELPRESSURE_HPA);
+
+    // Eredmények kiírása a soros monitorra
+    Serial.print(F("Hőmérséklet: "));
+    Serial.print(temperature);
+    Serial.println(F(" °C"));
+
+    Serial.print(F("Páratartalom: "));
+    Serial.print(humidity);
+    Serial.println(F(" %"));
+
+    Serial.print(F("Nyomás: "));
+    Serial.print(pressure);
+    Serial.println(F(" hPa"));
+
+    Serial.print("Magasság: ");
+    Serial.print(altitude);
+    Serial.println(" m");
+
+    Serial.print(F("Gázellenállás: "));
+    Serial.print(gasResistance);
+    Serial.println(F(" kOhm"));
+
+    Serial.print("RTC T: ");
+    Serial.print(myRTC.getTemperature(), 2);
+
+    Serial.println(F("---"));
 }
